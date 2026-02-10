@@ -167,7 +167,7 @@ def create_overhead_foot_tracking_visualization(current_step: int = 0, num_steps
     
     fig.update_layout(
         title=dict(
-            text=f"<b>Stepping Target - Overhead View (Current Step: {current_step})</b>",
+            text=f"<b>Stepping Target (Current Step: {current_step})</b>",
             font=dict(size=20, color="#d32f2f")
         ),
         xaxis=dict(
@@ -209,7 +209,7 @@ def create_hero_summary(stats, session_time, distance):
                 color: white; 
                 text-align: center;
                 box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-        <h1 style="margin: 0; font-size: 2.5em; font-weight: bold;">Session Complete! 🎉</h1>
+        <h1 style="margin: 0; font-size: 2.5em; font-weight: bold;">Session Complete!</h1>
         <div style="display: flex; justify-content: space-around; margin-top: 30px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 150px; margin: 10px;">
                 <div style="font-size: 3em; font-weight: bold;">{distance:.2f}</div>
@@ -590,11 +590,11 @@ def main():
         total_distance = stats['avg_speed'] * session_time * 1609.34
         
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "🎯 Real-Time Display", 
-            "📊 Hero Summary", 
-            "📈 Post-Analysis", 
-            "📅 Progress Tracking",
-            "👣 Stepping Target"
+            "Real-Time Display", 
+            "Hero Summary", 
+            "Post-Analysis", 
+            "Progress Tracking",
+            "Stepping Target"
         ])
         
         with tab1:
@@ -980,15 +980,7 @@ def main():
                 st.info("No session history available yet. Complete a session to start tracking progress.")
         
         with tab5:
-            st.markdown('<h2 style="color:#d32f2f;">Stepping Target - Overhead View</h2>', unsafe_allow_html=True)
-            
-            st.info("""
-            **Stepping Target Graphic:**
-            - View from above (bird's eye view)
-            - Green dotted lines show target step positions
-            - Match your steps to the target positions
-            - Real-time scoring based on accuracy
-            """)
+            st.markdown('<h2 style="color:#d32f2f;">Stepping Target</h2>', unsafe_allow_html=True)
             
             track_col1, track_col2 = st.columns([3, 1])
             
