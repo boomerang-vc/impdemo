@@ -48,7 +48,128 @@ def process_csv_file(uploaded_file):
         
     except Exception as e:
         return None, f"Error processing CSV file: {str(e)}"
-    
+
+
+def generate_fake_foot_tracking_data(num_steps: int = 10):
+    steps = []
+    x_position = 0.0
+    step_length = 0.75
+    for i in range(num_steps):
+        x_position += step_length
+        if i % 2 == 0:
+            foot = "Right"
+            y = 0.15
+        else:
+            foot = "Left"
+            y = -0.15
+        steps.append(
+            {
+                "step": i,
+                "foot": foot,
+                "x": x_position,
+                "y": y,
+                "phase": "contact",
+            }
+        )
+    return pd.DataFrame(steps)
+
+
+def create_foot_tracking_visualization(current_step: int = 0, num_steps: int = 10):
+    df_track = generate_fake_foot_tracking_data(num_steps)
+
+    fig = go.Figure()
+
+    fig.add_shape(
+        type="rect",
+        x0=0,
+        y0=-0.5,
+        x1=num_steps,
+        y1=0.5,
+        line=dict(color="gray", width=2),
+        fillcolor="lightgray",
+        opacity=0.3,
+        layer="below",
+    )
+
+    color_map = {"Right": "#FF6B6B", "Left": "#4ECDC4"}
+
+    for idx, row in df_track.iterrows():
+        if idx == current_step:
+            size = 30
+            opacity = 1.0
+            symbol = "diamond"
+        elif idx < current_step:
+            size = 18
+            opacity = 0.5
+            symbol = "circle"
+        else:
+            size = 12
+            opacity = 0.25
+            symbol = "circle"
+
+        fig.add_trace(
+            go.Scatter(
+                x=[row["x"]],
+                y=[row["y"]],
+                mode="markers",
+                marker=dict(
+                    size=size,
+                    color=color_map[row["foot"]],
+                    opacity=opacity,
+                    symbol=symbol,
+                    line=dict(width=2, color=color_map[row["foot"]]),
+                ),
+                name=f"{row['foot']} – step {row['step']}",
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "x = %{x:.2f} m<br>"
+                    "y = %{y:.2f} m<br>"
+                    "<extra></extra>"
+                ),
+                text=[f"{row['foot']} foot"],
+                showlegend=(idx in [0, 1]),
+            )
+        )
+
+        fig.add_annotation(
+            x=row["x"],
+            y=row["y"] + (0.22 if row["foot"] == "Right" else -0.22),
+            text=f"S{row['step']}",
+            showarrow=False,
+            font=dict(size=10, color=color_map[row["foot"]]),
+            opacity=0.8,
+        )
+
+    fig.update_layout(
+        title=f"Live Foot Tracking (Step {current_step})",
+        xaxis=dict(
+            title="Position along treadmill (m)",
+            range=[-0.5, num_steps * 0.9 + 1],
+            showgrid=True,
+            gridcolor="rgba(0,0,0,0.05)",
+        ),
+        yaxis=dict(
+            title="Left  ↔  Right",
+            range=[-1, 1],
+            showgrid=True,
+            gridcolor="rgba(0,0,0,0.05)",
+        ),
+        height=450,
+        plot_bgcolor="rgba(250,250,250,1)",
+        paper_bgcolor="white",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+        ),
+        margin=dict(l=60, r=40, t=60, b=60),
+    )
+
+    return fig
+
+
 st.set_page_config(
     page_title="Summary",
     page_icon="👣",
@@ -182,6 +303,37 @@ def main():
         
         stats = calculate_statistics(filtered_df)
         
+        st.markdown('<span style="color:#d32f2f; font-size:32px; ">Live Foot Tracking</span>', unsafe_allow_html=True)
+        track_col1, track_col2 = st.columns([3, 1])
+
+        with track_col1:
+            sim_speed = st.slider(
+                "Simulation speed (visual only)",
+                min_value=1,
+                max_value=5,
+                value=2,
+                help="Controls how fast the step index would change in a real-time setup.",
+            )
+            current_step = st.slider(
+                "Current fake step index",
+                min_value=0,
+                max_value=9,
+                value=0,
+                help="Move this slider to see the fake foot positions update.",
+            )
+            fig_track = create_foot_tracking_visualization(current_step=current_step, num_steps=10)
+            st.plotly_chart(fig_track, use_container_width=True)
+
+        with track_col2:
+            st.subheader("Tracking stats")
+            st.metric("Current step", current_step)
+            st.metric("Total fake steps", 10)
+            avg_cadence = (stats['avg_right_cadence'] + stats['avg_left_cadence']) / 2
+            st.metric("Avg. cadence (steps/min)", f"{avg_cadence:.1f}")
+
+        fake_positions = generate_fake_foot_tracking_data(10)
+        st.dataframe(fake_positions, use_container_width=True, hide_index=True)
+
         acol1, acol2, acol3 = st.columns([1, 2, 1]) 
 
         scol1, scol2, scol3 = st.columns([1, 2, 1]) 
@@ -214,10 +366,8 @@ def main():
 
         st.markdown('<span style="color:#d32f2f; font-size:32px; ">Statistics</span>', unsafe_allow_html=True)
 
-  
         scol1, scol2, scol3 = st.columns(3)
 
-  
         with scol1:
             st.metric("Average Gait Speed (mph)", f"{stats.get('avg_gait', (stats['avg_left_speed'] + stats['avg_right_speed']) / 2):.2f}")
         with scol2:
@@ -225,26 +375,20 @@ def main():
         with scol3:
             st.metric("Left Cadence (steps/min)", f"{stats.get('left_cadence', stats['avg_left_cadence']):.2f}")
         
-  
         st.markdown('<span style="color:#d32f2f; font-size:32px; ">Trends</span>', unsafe_allow_html=True)
         
-  
         tab1, tab2, tab3 = st.tabs(["Speed & Cadence", "Step Parameters", "Stance vs. Swing"])
         
         with tab1:
             st.subheader("Speed and Cadence Over Time")        
 
-  
             filtered_df['Right Speed (mph)'] = filtered_df['GaitSpeed Rtable (mph*10)'] / 10
             filtered_df['Left Speed (mph)'] = filtered_df['GaitSpeed Ltable (mph*10)'] / 10
             
-  
             filtered_df['Sample Index'] = range(len(filtered_df))
             
-  
             fig = make_subplots(specs=[[{"secondary_y": True}]])
             
-  
             fig.add_trace(
                 go.Scatter(x=filtered_df['Sample Index'], y=filtered_df['Right Speed (mph)'], 
                           name="Right Speed", line=dict(color="blue")),
@@ -257,7 +401,6 @@ def main():
                 secondary_y=False
             )
 
-  
             fig.update_xaxes(title_text="Time (s)")
             fig.update_yaxes(title_text="Speed (mph)", secondary_y=False)
 
@@ -267,18 +410,13 @@ def main():
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
             )
 
-            
-  
             filtered_df['Right Cadence (steps/min)'] = filtered_df['Left Cadence (steps/min)']
             filtered_df['Left Speed (steps/min)'] = filtered_df['Right Cadence (steps/min)']
             
-  
             filtered_df['Index'] = range(len(filtered_df))
             
-  
             fig2 = make_subplots(specs=[[{"secondary_y": True}]])
 
-  
             fig2.add_trace(
                 go.Scatter(x=filtered_df['Sample Index'], y=filtered_df['Right Cadence (steps/min)'], 
                           name="Right Cadence", line=dict(color="red", dash="dash")),
@@ -291,7 +429,6 @@ def main():
                 secondary_y=True
             )
             
-  
             fig2.update_xaxes(title_text="Time (s)")
             fig2.update_yaxes(title_text="Cadence (steps/min)", secondary_y=False)
             
@@ -307,10 +444,8 @@ def main():
         with tab2:
             st.subheader("Step and Stride Parameters")
             
-  
             fig = go.Figure()
             
-  
             fig.add_trace(go.Scatter(
                 x=filtered_df['Sample Index'], 
                 y=filtered_df['Right Step Length (meters)'],
@@ -327,7 +462,6 @@ def main():
                 line=dict(color='red')
             ))
             
-  
             fig.add_trace(go.Scatter(
                 x=filtered_df['Sample Index'], 
                 y=filtered_df['Right Stride Length (meters)'],
@@ -354,11 +488,9 @@ def main():
             
             st.plotly_chart(fig, use_container_width=True)
             
-  
             col1, col2 = st.columns(2)
             
             with col1:
-  
                 fig = px.histogram(
                     filtered_df, 
                     x=['Right Step Time (sec)', 'Left Step Time (sec)'],
@@ -378,7 +510,6 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-  
                 fig = px.histogram(
                     filtered_df, 
                     x=['Right Step Length (meters)', 'Left Step Length (meters)'],
@@ -400,7 +531,6 @@ def main():
         with tab3:
             st.subheader("Left vs. Right Comparison")
             
-  
             parameter_options = [
                 "Step Time (sec)", "Step Length (meters)", "Cadence (steps/min)",
                 "Swing Time (sec)", "Stance Time (sec)", "Stride Time (sec)", "Stride Length (meters)"
@@ -408,11 +538,9 @@ def main():
             
             selected_parameter = st.selectbox("Select parameter to compare:", parameter_options)
             
-  
             left_param = f"Left {selected_parameter}"
             right_param = f"Right {selected_parameter}"
             
-  
             min_val = min(filtered_df[left_param].min(), filtered_df[right_param].min())
             max_val = max(filtered_df[left_param].max(), filtered_df[right_param].max())
             
@@ -425,7 +553,6 @@ def main():
                 marginal_y="histogram"
             )
             
-  
             fig.add_trace(
                 go.Scatter(
                     x=[min_val, max_val],
@@ -445,11 +572,9 @@ def main():
             
             st.plotly_chart(fig, use_container_width=True)
             
-  
             col1, col2 = st.columns(2)
             
             with col1:
-  
                 stats_df = pd.DataFrame({
                     'Parameter': [selected_parameter],
                     'Left (Mean)': [filtered_df[left_param].mean()],
@@ -459,7 +584,6 @@ def main():
                     'Correlation': [filtered_df[left_param].corr(filtered_df[right_param])]
                 })
                 
-  
                 stats_df['Left (Mean)'] = stats_df['Left (Mean)'].map('{:.3f}'.format)
                 stats_df['Right (Mean)'] = stats_df['Right (Mean)'].map('{:.3f}'.format)
                 stats_df['Difference'] = stats_df['Difference'].map('{:.3f}'.format)
@@ -469,13 +593,11 @@ def main():
                 st.write("Statistical Comparison")
                 st.dataframe(stats_df, hide_index=True)
         
-  
         st.markdown('<span style="color:#d32f2f; font-size:32px; ">Export Options</span>', unsafe_allow_html=True)
         export_col1, export_col2 = st.columns(2)
         
         with export_col1:
             if st.button("Export Statistics Summary"):
-  
                 summary_stats = pd.DataFrame({
                     'Parameter': [
                         'Average Gait Speed (mph)',
@@ -501,10 +623,8 @@ def main():
                     ]
                 })
                 
-  
                 csv_stats = summary_stats.to_csv(index=False)
                 
-  
                 st.download_button(
                     label="Download Statistics CSV",
                     data=csv_stats,
@@ -512,18 +632,15 @@ def main():
                     mime="text/csv",
                 )
                 
-  
                 st.dataframe(summary_stats, hide_index=True)
         
         with export_col2:
             def export_full_report_to_pdf(stats, patient_id):
-  
                 pdf = FPDF()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 pdf.add_page()
                 pdf.set_font("Arial", size=12)
 
-  
                 pdf.set_font("Arial", style="B", size=16)
                 pdf.cell(0, 10, "Patient Gait Analysis Report", ln=True, align="C")
                 pdf.ln(10)
@@ -533,7 +650,6 @@ def main():
                 pdf.cell(0, 10, f"Analysis Date: {pd.Timestamp.now().strftime('%Y-%m-%d')}", ln=True)
                 pdf.ln(10)
 
-  
                 pdf.set_font("Arial", style="B", size=14)
                 pdf.cell(0, 10, "Key Statistics", ln=True)
                 pdf.ln(5)
@@ -546,12 +662,10 @@ def main():
                 pdf.cell(0, 10, f"- Left Step Length: {stats['avg_left_step_length']:.3f} m", ln=True)
                 pdf.ln(10)
 
-  
                 pdf.set_font("Arial", style="B", size=14)
                 pdf.cell(0, 10, "Recommendations", ln=True)
                 pdf.ln(5)
 
-  
                 pdf_buffer = BytesIO()  
                 pdf_content = pdf.output(dest='S').encode('latin1')  
                 pdf_buffer.write(pdf_content)  
@@ -568,13 +682,11 @@ def main():
                 mime="application/pdf",
             )
         
-  
         st.markdown('<span style="color:#d32f2f; font-size:32px; ">Raw Data</span>', unsafe_allow_html=True)
         
         if st.checkbox("Show Raw Data Table"):
             st.dataframe(filtered_df)
             
-  
             if st.button("Export Raw Data"):
                 csv_data = filtered_df.to_csv(index=False)
                 st.download_button(
@@ -584,9 +696,7 @@ def main():
                     mime="text/csv",
                 )
         
-  
         st.markdown('<span style="color:#d32f2f; font-size:32px; ">Progress Tracking</span>', unsafe_allow_html=True)
 
-  
 if __name__ == "__main__":
     main()
