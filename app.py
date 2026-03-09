@@ -1099,7 +1099,6 @@ def main():
             target_step_length_min, target_step_length_max = st.session_state.target_zones['step_length']
 
         st.sidebar.markdown("---")
-        st.sidebar.info("Your session is configured by your therapist.\nJust walk and watch your screen!")
 
     with st.sidebar.expander("Help & Information"):
         if is_admin:
